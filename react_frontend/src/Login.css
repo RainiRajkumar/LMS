@@ -1,0 +1,280 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+/* --- GLOBAL RESET & DARK THEME --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #020617; /* Very dark slate */
+  color: white;
+  overflow-x: hidden;
+}
+
+/* --- THE BACKGROUND (Dark with subtle top spotlight) --- */
+.portal-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+  
+  /* Matches the video's deep dark blue/black vibe */
+  background: radial-gradient(circle at top, #1e293b 0%, #020617 60%);
+}
+
+/* --- HEADER TEXT --- */
+.header {
+  text-align: center;
+  margin-bottom: 70px;
+  animation: fadeIn 1.2s ease-out;
+}
+
+.header h1 {
+  font-size: 3.5rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: white;
+  letter-spacing: -0.5px;
+}
+
+.header p {
+  color: #94a3b8;
+  font-size: 1.1rem;
+  font-weight: 400;
+}
+
+/* --- CARDS CONTAINER --- */
+.cards-wrapper {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+  z-index: 10;
+}
+
+/* --- THE CARD (Glassmorphism & Structure) --- */
+.role-card {
+  /* Dark semi-transparent background */
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 1) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  
+  border-radius: 20px;
+  width: 320px;
+  padding: 50px 20px;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  
+  cursor: pointer;
+  position: relative;
+  overflow: hidden; /* Keeps the glow inside */
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+}
+
+/* --- HOVER STATE (Matches Video) --- */
+.role-card:hover {
+  transform: translateY(-12px);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5); /* Drop shadow */
+}
+
+/* --- THE GLOW EFFECT (The Nebula behind the head) --- */
+.glow-effect {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  z-index: 0;
+  
+  /* Uses the specific color passed from React */
+  background: radial-gradient(circle, var(--card-color) 0%, transparent 70%);
+  
+  /* High blur to make it look like light */
+  filter: blur(40px);
+  opacity: 0.4;
+  
+  /* Subtle breathing animation even when not hovering */
+  animation: breathe 4s ease-in-out infinite alternate;
+  transition: opacity 0.4s ease;
+}
+
+.role-card:hover .glow-effect {
+  opacity: 30; /* Gets brighter on hover */
+}
+
+/* --- AVATAR & FLOATING ANIMATION --- */
+.avatar-wrapper {
+  z-index: 2;
+  margin-bottom: 25px;
+  /* Floating animation for the image */
+  animation: float 5s ease-in-out infinite;
+}
+
+.avatar-circle {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: #f8fafc; /* Light background behind avatar */
+  border: 4px solid rgba(255, 255, 255, 0.1); /* Subtle ring */
+  transition: border-color 0.3s ease, transform 0.3s ease;
+  position: relative;
+}
+
+/* The white ring highlights on hover */
+.role-card:hover .avatar-circle {
+  border-color: rgba(255,255,255, 0.8);
+  transform: scale(1.05);
+}
+
+.avatar-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* --- TEXT STYLING --- */
+.role-card h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 15px;
+  z-index: 2;
+  color: #fff;
+}
+
+.role-card p {
+  font-size: 0.95rem;
+  color: #94a3b8; /* Muted grey text */
+  line-height: 1.6;
+  margin-bottom: 40px;
+  z-index: 2;
+  padding: 0 10px;
+}
+
+/* --- BOTTOM INDICATOR LINE --- */
+.indicator-line {
+  width: 40px;
+  height: 5px;
+  border-radius: 10px;
+  z-index: 2;
+  background-color: var(--card-color);
+  box-shadow: 0 0 10px var(--card-color); /* Neon Glow on the line */
+  transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.role-card:hover .indicator-line {
+  width: 100px; /* Expands on hover */
+}
+
+/* --- ANIMATIONS KEYFRAMES --- */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes breathe {
+  0% { transform: translateX(-50%) scale(1); opacity: 0.4; }
+  100% { transform: translateX(-50%) scale(1.1); opacity: 0.6; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- FOOTER --- */
+.footer {
+  margin-top: 80px;
+  color: #475569;
+  font-size: 0.9rem;
+  z-index: 2;
+}
+.footer a { color: #38bdf8; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+
+/* ------------------------------------------- */
+/* --- LOGIN FORM STYLES (If card selected) --- */
+/* ------------------------------------------- */
+.login-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  padding: 70px;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  position: relative;
+  z-index: 20;
+  animation: slideUp 0.5s ease-out;
+}
+
+.avatar-small {
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  margin: 0 auto 15px;
+  background: #fff;
+  overflow: hidden;
+  border: 3px solid #334155;
+}
+.avatar-small img { width: 100%; }
+
+.login-form input {
+  width: 100%;
+  padding: 14px 15px 14px 45px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: white;
+  margin-bottom: 0;
+  outline: none;
+  transition: all 0.3s;
+}
+.login-form input:focus { background: #020617; }
+.input-group { margin-bottom: 20px; position: relative; }
+.input-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); z-index: 5; }
+
+.login-button {
+  width: 100%;
+  padding: 14px;
+  border: none; border-radius: 8px;
+  color: white; font-weight: bold; font-size: 1rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: opacity 0.2s;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.login-button:hover { opacity: 0.9; }
+
+.back-btn {
+  position: absolute; top: 20px; left: 20px;
+  background: none; border: none; color: #64748b; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+}
+.back-btn:hover { color: white; }
+
+/* Utility */
+.alert { padding: 10px; margin-bottom: 20px; border-radius: 6px; font-size: 0.9rem; }
+.alert.error { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; }
+.alert.success { background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid #22c55e; }
+.spinner { animation: spin 1s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+.shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+@keyframes shake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } }

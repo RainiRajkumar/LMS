@@ -1,0 +1,123 @@
+/* Container */
+.gcal-container {
+    background: white;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    margin-top: 20px;
+    width: 100%;
+}
+
+/* Header */
+.gcal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.gcal-header h2 {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.gcal-header button {
+    font-size: 22px;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+/* Weekdays */
+.gcal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-weight: bold;
+    padding-bottom: 10px;
+}
+
+.weekday {
+    color: #333;
+}
+
+/* Calendar Grid */
+.gcal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+
+.gcal-day {
+    height: 110px;
+    background: #fafafa;
+    border-radius: 8px;
+    padding: 6px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.gcal-day:hover {
+    background: #eee;
+}
+
+.gcal-day.empty {
+    background: none;
+    cursor: default;
+}
+
+.day-num {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+/* Attendance Colors */
+.present {
+    background: #e9ffe9;
+}
+
+.absent {
+    background: #ffeaea;
+}
+
+.late {
+    background: #fff3cd;
+}
+
+.excused {
+    background: #e4f1ff;
+}
+
+/* Weekend */
+.weekend {
+    background: #fff7f3;
+}
+
+/* Holiday */
+.holiday {
+    background: #ffdcdc !important;
+    border: 2px solid #ff9a9a;
+}
+
+/* Tooltip */
+.tooltip {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    background: #333;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.gcal-day:hover .tooltip {
+    opacity: 1;
+}

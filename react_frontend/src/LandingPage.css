@@ -1,0 +1,298 @@
+/* =========================
+   GLOBAL
+   ========================= */
+   html, body {
+  margin: 0;
+  padding: 0;
+  height: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+}
+
+.lms-container {
+  font-family: "Poppins", sans-serif;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  height: auto !important;
+  color: #1e2a38;
+  background: #f6f9fc;
+}
+
+/* =========================
+   ANIMATED GRADIENT BG
+   ========================= */
+.lms-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 120px 50px;
+  flex-wrap: wrap;
+
+  background: linear-gradient(135deg, #6a11cb, #2575fc, #00d4ff, #00ff87);
+  background-size: 400% 400%;
+  animation: heroGradient 12s ease infinite;
+
+  color: white;
+}
+
+@keyframes heroGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* =========================
+   HERO TEXT
+   ========================= */
+.lms-hero-content {
+  max-width: 500px;
+  animation: fadeSlideUp 1.2s ease forwards;
+}
+
+.lms-hero-content h1 {
+  font-size: 3.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 20px;
+  text-shadow: 0 5px 20px rgba(0,0,0,0.25);
+}
+
+.lms-hero-content p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  margin-bottom: 25px;
+}
+
+/* =========================
+   BUTTONS
+   ========================= */
+.lms-buttons {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.lms-btn {
+  padding: 13px 28px;
+  border-radius: 40px;
+  border: none;
+  font-size: 1.05rem;
+  cursor: pointer;
+  color: white;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  transition: 0.4s ease;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+/* Ripple Effect */
+.lms-btn:active::after {
+  content: "";
+  width: 160%;
+  height: 160%;
+  background: rgba(255,255,255,0.4);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple 0.5s linear;
+}
+
+@keyframes ripple {
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+.admin { background: linear-gradient(45deg, #ff3131, #ff914d); }
+.student { background: linear-gradient(45deg, #1e90ff, #00d4ff); }
+.trainer { background: linear-gradient(45deg, #1dd1a1, #10ac84); }
+
+.lms-btn:hover {
+  transform: scale(1.15) translateY(-3px);
+  filter: brightness(1.2);
+  box-shadow: 0 10px 30px rgba(255,255,255,0.5);
+}
+
+/* =========================
+   HERO IMAGE (FLOATING)
+   ========================= */
+.lms-hero-img img {
+  width: 430px;
+  animation: float3D 5s ease-in-out infinite;
+  transform-style: preserve-3d;
+  transition: 0.4s ease;
+}
+
+.lms-hero-img img:hover {
+  transform: scale(1.1) rotateY(15deg);
+}
+
+@keyframes float3D {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-18px); }
+}
+
+/* =========================
+   SECTION TITLE
+   ========================= */
+.lms-features h2 {
+  text-align: center;
+  font-size: 3rem;
+  margin: 70px 0 40px;
+  color: #283c63;
+  text-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  animation: popIn 1s ease forwards;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* =========================
+   CARDS GRID
+   ========================= */
+.lms-feature-grid {
+  display: flex;
+  justify-content: center;
+  gap: 35px;
+  flex-wrap: wrap;
+  padding-bottom: 50px;
+}
+
+/* =========================
+   3D GLASS CARDS
+   ========================= */
+.lms-card {
+  width: 280px;
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  border-radius: 25px;
+
+  border: 2px solid rgba(255,255,255,0.4);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+
+  text-align: center;
+  transition: 0.5s ease;
+  transform-style: preserve-3d;
+  position: relative;
+}
+
+/* glowing neon border on hover */
+.lms-card:hover {
+  transform: translateY(-18px) rotateY(8deg) scale(1.08);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  border-color: #00ffe7;
+}
+
+/* image animation */
+.lms-card img {
+  width: 85px;
+  margin-bottom: 18px;
+  transition: 0.4s;
+}
+
+.lms-card:hover img {
+  transform: scale(1.2) rotate(12deg);
+}
+
+.lms-card h3 {
+  margin-bottom: 12px;
+  font-size: 1.3rem;
+  color: #243447;
+  font-weight: 600;
+}
+
+.lms-card p {
+  font-size: 0.95rem;
+  color: #555;
+}
+
+/* =========================
+   INTERACTIVE SECTION
+   ========================= */
+.lms-interactive {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 120px 40px;
+  flex-wrap: wrap;
+  background: #ffffff;
+}
+
+.lms-interactive-text {
+  max-width: 450px;
+}
+
+
+
+.lms-explore-btn {
+  padding: 12px 28px;
+  background: linear-gradient(45deg, #ff7eb3, #ff758c);
+  border: none;
+  border-radius: 40px;
+  color: white;
+  font-weight: bold;
+  margin-top: 20px;
+  cursor: pointer;
+  transition: 0.4s ease;
+}
+
+.lms-interactive-text h2 {
+  font-size: 2.5rem;
+  margin-bottom: 15px;
+}
+
+
+
+.lms-explore-btn:hover {
+  transform: scale(1.1);
+  filter: brightness(1.2);
+}
+
+.lms-interactive-img img {
+  width: 500px;
+  max-width: 90%;
+  animation: floatImg 6s ease-in-out infinite;
+}
+
+
+
+
+@keyframes floatMid {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+/* =========================
+   FOOTER
+   ========================= */
+.lms-footer {
+  background: #1e2a38;
+  color: #d0d4db;
+  padding: 35px;
+  text-align: center;
+  margin-top: 40px;
+  letter-spacing: 0.5px;
+  animation: fadeSlideUp 2s ease forwards;
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+
+
+
+
+
+
+
+
+
+

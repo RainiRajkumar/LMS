@@ -11,6 +11,7 @@ import './StudentDashboard.css';
 import GoogleCalenderAttendance from './GoogleCalenderAttendance';
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generatePaymentReceipt } from "../utils/generatePaymentReceipt";
 
 // --- YOUTUBE PLAYER COMPONENT FOR COMPLETION TRACKING ---
 function YouTubePlayer({ videoId, onComplete }) {
@@ -265,9 +266,9 @@ function StudentDashboard() {
                     student_id: currentStudentId,
                     query: newQueryText,
                     language: selectedLanguage,
-                    voice_mode: isVoiceMode,     // if you have this option
+                    voice_mode: isVoiceMode,     
                 },
-                apiHeaders // This is already the config object with headers
+                apiHeaders
             );
 
             // Update history
@@ -381,57 +382,92 @@ function StudentDashboard() {
     //--- HANDLERS ---
 
     const handleEnroll = async (courseId) => {
-        try {
-            const res = await axios.post('http://localhost:8000/student/enroll', { course_id: courseId }, apiHeaders);
-
-            const enrollmentData = res.data;
-            console.log("enrollment data:", enrollmentData)
-
-            const paymentState = {
-                enrollment_id: enrollmentData.id,
-                amount: enrollmentData.course_fee_amount,
-                course_id: courseId
-            };
-            console.log("payment state:", paymentState)
-            setSelectedEnrollment(paymentState);
-            console.log("selected enrollment:", paymentState);
-            setShowPayment(true);
-            // Refresh enrollments
-            const [enrolledRes] = await Promise.all([
-                axios.get('http://localhost:8000/student/enrollments', apiHeaders)
-            ]);
-            setEnrolledCourses(enrolledRes.data);
-            alert('Successfully enrolled! Please proceed to payment.');
-
-        } catch (err) {
-            alert('Enrollment failed: ' + (err.response?.data?.detail || err.message));
-        }
+        // Find course fee and set in selectedEnrollment
+        const course = allCourses.find(c => c.id === courseId);
+        setSelectedEnrollment({
+            course_id: courseId,
+            amount: course ? course.course_fee : '',
+        });
+        setShowPayment(true);
     };
 
 
     const makePayment = async () => {
         if (!selectedEnrollment) return;
-
-        console.log("making payment for:", selectedEnrollment);
+        // --- VALIDATION ---
+        let errorMsg = '';
+        if (!selectedEnrollment.amount || isNaN(selectedEnrollment.amount) || Number(selectedEnrollment.amount) <= 0) {
+            errorMsg = 'Invalid or missing amount.';
+        } else if (paymentMethod === 'UPI') {
+            if (!paymentForm.upiId || !/^\w+@\w+$/.test(paymentForm.upiId)) {
+                errorMsg = 'Please enter a valid UPI ID (e.g., username@bank).';
+            }
+        } else if (paymentMethod === 'CARD') {
+            if (!/^\d{16}$/.test(paymentForm.cardNumber.replace(/\s/g, ''))) {
+                errorMsg = 'Card number must be 16 digits.';
+            } else if (!paymentForm.cardName.trim()) {
+                errorMsg = 'Name on card is required.';
+            } else if (!/^\d{2}\/\d{2}$/.test(paymentForm.expiry)) {
+                errorMsg = 'Expiry must be in MM/YY format.';
+            } else if (!/^\d{3}$/.test(paymentForm.cvv)) {
+                errorMsg = 'CVV must be 3 digits.';
+            }
+        } else if (paymentMethod === 'NETBANKING') {
+            if (!paymentForm.bankName) {
+                errorMsg = 'Please select a bank.';
+            } else if (!paymentForm.accountHolder.trim()) {
+                errorMsg = 'Account holder name is required.';
+            } else if (!/^\d{9,18}$/.test(paymentForm.accountNumber)) {
+                errorMsg = 'Account number must be 9-18 digits.';
+            } else if (!/^\w{4}\d{7}$/.test(paymentForm.ifsc)) {
+                errorMsg = 'IFSC must be 4 letters followed by 7 digits.';
+            }
+        }
+        if (errorMsg) {
+            alert(errorMsg);
+            return;
+        }
+        // --- END VALIDATION ---
         try {
+            // 1. Enroll the student (get enrollment id and amount)
+            const enrollRes = await axios.post('http://localhost:8000/student/enroll', { course_id: selectedEnrollment.course_id }, apiHeaders);
+            const enrollmentData = enrollRes.data;
+            // 2. Make payment
             const res = await axios.post(
                 'http://localhost:8000/payment/pay',
                 {
-                    enrollment_id: selectedEnrollment.enrollment_id,
-                    amount: selectedEnrollment.amount,
+                    enrollment_id: enrollmentData.id,
+                    amount: enrollmentData.course_fee_amount,
                     payment_method: paymentMethod
                 },
                 apiHeaders
             );
-            console.log("payment response:", res.data);
             alert('Payment Successful! Transaction ID: ' + res.data.transaction_id);
+
+            // Generate PDF receipt
+            try {
+                await generatePaymentReceipt({
+                    studentName: student?.name || '',
+                    courseTitle: allCourses.find(c => c.id === selectedEnrollment.course_id)?.title || '',
+                    amount: res.data.amount || enrollmentData.course_fee_amount || selectedEnrollment.amount,
+                    paymentMethod: res.data.payment_method,
+                    transactionId: res.data.transaction_id,
+                    paidOn: formatDate(res.data.paid_on),
+                    enrollmentId: res.data.enrollment_id,
+                    courseId: res.data.course_id
+                });
+            } catch (err) {
+                alert("PDF generation failed. Please try again.");
+            }
+
             setShowPayment(false);
-
-
-
-
+            // Refresh enrollments
+            const [enrolledRes] = await Promise.all([
+                axios.get('http://localhost:8000/student/enrollments', apiHeaders)
+            ]);
+            setEnrolledCourses(enrolledRes.data);
         } catch (err) {
-            alert('Payment failed: ' + (err.response?.data?.detail || err.message));
+            alert('Payment or Enrollment failed: ' + (err.response?.data?.detail || err.message));
         }
     };
 

@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, EmailStr, constr, conint
+from pydantic import BaseModel, EmailStr, constr, conint, validator
 from typing import Optional, List, Literal
 from datetime import datetime, date
 
@@ -224,7 +224,9 @@ class Assignment(BaseModel):
 
 class AssignmentResponse(Assignment):
     id: int
-
+    @validator("reference_material_url", pre=True, always=True)
+    def set_default_reference(cls, value):
+        return value or "N/A"
 
 # ------------------- GRADE MODELS -------------------
 

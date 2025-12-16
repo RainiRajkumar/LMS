@@ -1,24 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import {
-  Users,
-  Book,
-  FileText,
-  AlertCircle,
-  Plus,
-  Edit,
-  Trash2,
-  UserCheck,
-  Clipboard, 
-  Home,
-  LogOut,
-  ChevronRight,
-  Search,
-  Bell
-} from "react-feather";
+import {Users,Book,FileText,AlertCircle,Plus,Edit,Trash2,UserCheck,Clipboard,Home,LogOut,ChevronRight,Search,Bell} from "react-feather";
 import "./AdminDashboard.css";
-
-
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [students, setStudents] = useState([]);
@@ -28,12 +11,9 @@ function AdminDashboard() {
   const [assignments, setAssignments] = useState([]);
   const [formData, setFormData] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState(""); 
+  const [modalType, setModalType] = useState("");
   const token = localStorage.getItem("token");
   const [payments, setPayments] = useState([]);
-
-
-
   useEffect(() => {
     fetchStudents();
     fetchTrainers();
@@ -42,14 +22,12 @@ function AdminDashboard() {
     fetchEnrollments();
     fetchPayments();
   }, []);
-
   const fetchStudents = async () => {
     try {
       const res = await axios.get("http://localhost:8000/students/", { headers: { Authorization: `Bearer ${token}` } });
       setStudents(res.data);
     } catch (err) { console.error(err); }
   };
-
   const fetchTrainers = async () => {
     try {
       const res = await axios.get("http://localhost:8000/trainers", { headers: { Authorization: `Bearer ${token}` } });
@@ -75,32 +53,33 @@ function AdminDashboard() {
     try {
       const res = await axios.get("http://localhost:8000/admin/assignments", { headers: { Authorization: `Bearer ${token}` } });
       setAssignments(res.data);
+      console.log(res.data)
     } catch (err) { console.error(err); }
   };
 
   const fetchPayments = async () => {
-  try {
-    const res = await axios.get(
-      "http://localhost:8000/payment/admin/all",
-      {
-        headers: { Authorization: `Bearer ${token}` }
-      }
-    );
-    setPayments(res.data);
-  } catch (err) {
-    console.error("Error loading payments:", err);
-  }
-};
+    try {
+      const res = await axios.get(
+        "http://localhost:8000/payment/admin/all",
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setPayments(res.data);
+    } catch (err) {
+      console.error("Error loading payments:", err);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     let url = "";
     let method = "post";
     let data = { ...formData };
-    
+
     if (modalType === "student" && data.id && !data.password) delete data.password;
 
-    let fetcher = () => {};
+    let fetcher = () => { };
 
     switch (modalType) {
       case "student":
@@ -133,7 +112,10 @@ function AdminDashboard() {
 
   const handleEdit = (item, type) => {
     const itemCopy = { ...item };
-    if (type === "student") itemCopy.password = ""; 
+    if (type === "student") itemCopy.password = "";
+    if (type === "trainer" && !itemCopy.course_ids) {
+      itemCopy.course_ids = [];
+    }
     setFormData(itemCopy);
     setModalType(type);
     setIsModalOpen(true);
@@ -143,7 +125,7 @@ function AdminDashboard() {
     if (!window.confirm("Are you sure?")) return;
     try {
       let url = "";
-      let fetcher = () => {};
+      let fetcher = () => { };
       if (type === "student") { url = `http://localhost:8000/students/${id}`; fetcher = fetchStudents; }
       else if (type === "trainer") { url = `http://localhost:8000/admin/trainers/${id}`; fetcher = fetchTrainers; }
       else if (type === "course") { url = `http://localhost:8000/admin/courses/${id}`; fetcher = fetchCourses; }
@@ -155,14 +137,34 @@ function AdminDashboard() {
 
   const openModal = (type) => {
     setModalType(type);
-    setFormData({});
+    setFormData(type === "trainer" ? { course_ids: [] } : {});
     setIsModalOpen(true);
   };
 
+
+  // Helper to toggle course IDs in the formData
+  const toggleCourseSelection = (courseId) => {
+    // Ensure course_ids exists as an array
+    const currentSelected = formData.course_ids || [];
+
+    if (currentSelected.includes(courseId)) {
+      // If already selected, remove it
+      setFormData({
+        ...formData,
+        course_ids: currentSelected.filter((id) => id !== courseId),
+      });
+    } else {
+      // If not selected, add it
+      setFormData({
+        ...formData,
+        course_ids: [...currentSelected, courseId],
+      });
+    }
+  };
   const renderForm = () => {
     // Form rendering logic remains the same as your code...
     if (modalType === "student") {
-       return (
+      return (
         <>
           <input type="text" placeholder="Name" value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
           <input type="number" placeholder="Age" value={formData.age || ""} onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })} required />
@@ -181,12 +183,67 @@ function AdminDashboard() {
           <input type="text" placeholder="Username" value={formData.username || ""} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required />
           <input type="password" placeholder="Password" value={formData.password || ""} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required={!formData.id} />
           <input type="email" placeholder="Email" value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
+
+          {/* COURSE SELECTION SECTION */}
+          <div className="form-section-label" style={{ marginTop: '15px', marginBottom: '5px', fontWeight: 'bold' }}>
+            Assign Courses:
+          </div>
+          <div className="course-checkbox-container" style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #eee', padding: '10px', borderRadius: '5px' }}>
+            {courses.length > 0 ? (
+              courses.map((course) => {
+                // 1. Find if any trainer (other than the one we are editing) has this course
+                const assignedTrainer = trainers.find((t) =>
+                  // Ensure course_ids exists and includes the current course ID
+                  Array.isArray(t.course_ids) && t.course_ids.includes(course.id)
+                );
+
+                // 2. Check if it is taken by SOMEONE ELSE (not the current formData.id)
+                const isTakenByOther = assignedTrainer && assignedTrainer.id !== formData.id;
+
+                // 3. Define styling for disabled items
+                const itemStyle = {
+                  display: "flex",
+                  alignItems: "center",
+                  marginBottom: "8px",
+                  opacity: isTakenByOther ? 0.5 : 1 // Fade out if taken
+                };
+
+                return (
+                  <div key={course.id} style={itemStyle}>
+                    <input
+                      type="checkbox"
+                      id={`course-${course.id}`}
+                      // If taken by another, disable the input
+                      disabled={isTakenByOther}
+                      checked={(formData.course_ids || []).includes(course.id)}
+                      onChange={() => toggleCourseSelection(course.id)}
+                      style={{ width: "auto", marginRight: "10px" }}
+                    />
+                    <label
+                      htmlFor={`course-${course.id}`}
+                      style={{ margin: 0, cursor: isTakenByOther ? "not-allowed" : "pointer" }}
+                    >
+                      {course.title}
+                      {/* Show who has the course if it is taken */}
+                      {isTakenByOther && (
+                        <span style={{ color: "red", fontSize: "0.8em", marginLeft: "10px" }}>
+                          (Assigned to {assignedTrainer.name})
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                );
+              })
+            ) : (
+              <p style={{ fontSize: "0.9em", color: "#666" }}>No courses available.</p>
+            )}
+          </div>
         </>
       );
     }
     if (modalType === "course") {
       return (
-         <>
+        <>
           <input type="text" placeholder="Title" value={formData.title || ""} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required />
           <textarea placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData({ ...formData, description: e.target.value })} required />
           <input type="number" placeholder="Course Fee" value={formData.course_fee || ""} onChange={(e) => setFormData({ ...formData, course_fee: Number(e.target.value) })} required />
@@ -201,7 +258,7 @@ function AdminDashboard() {
     if (type === "students") data = students;
     if (type === "trainers") data = trainers;
     if (type === "courses") data = courses;
-    if (type === "enrollments") data = enrollments; 
+    if (type === "enrollments") data = enrollments;
     if (type === "assignments") data = assignments;
     if (type === "payments") data = payments;
 
@@ -292,64 +349,64 @@ function AdminDashboard() {
 
           {/* Bottom Split Section */}
           <div className="dashboard-bottom-grid">
-            
+
             {/* Left: Upcoming Assignments */}
             <div className="section-card assignments-section">
               <div className="card-header">
                 <h4>Upcoming Assignments</h4>
-                <a href="#viewall" className="view-all-link">View All <ChevronRight size={14}/></a>
+                <a href="#viewall" className="view-all-link">View All <ChevronRight size={14} /></a>
               </div>
-              
+
               <div className="assignments-list">
                 {assignments.length === 0 ? (
-                    <div className="empty-state">
-                        <FileText size={40} />
-                        <p>No upcoming assignments.</p>
-                    </div>
+                  <div className="empty-state">
+                    <FileText size={40} />
+                    <p>No upcoming assignments.</p>
+                  </div>
                 ) : (
-                    assignments.slice(0, 3).map((a, index) => (
+                  assignments.slice(0, 3).map((a, index) => (
                     <div key={index} className="assignment-item">
-                        <div className="assign-icon-box">
-                            <FileText size={20} />
-                        </div>
-                        <div className="assign-details">
-                            <h5>{a.title}</h5>
-                            <span className="assign-course">{a.description}</span>
-                        </div>
-                        <div className="assign-meta">
-                            <span className="points">{a.max_score} score</span>
-                            <span className="due-date">Due: {a.due_date || "Dec 09"}</span>
-                        </div>
+                      <div className="assign-icon-box">
+                        <FileText size={20} />
+                      </div>
+                      <div className="assign-details">
+                        <h5>{a.title}</h5>
+                        <span className="assign-course">{a.description}</span>
+                      </div>
+                      <div className="assign-meta">
+                        <span className="points">{a.max_score} score</span>
+                        <span className="due-date">Due: {a.due_date || "Dec 09"}</span>
+                      </div>
                     </div>
-                    ))
+                  ))
                 )}
               </div>
             </div>
 
             {/* Right: Quick Actions */}
             <div className="section-card quick-actions-section">
-               <div className="card-header">
+              <div className="card-header">
                 <h4>Quick Actions</h4>
               </div>
               <div className="actions-grid">
                 <button className="action-tile" onClick={() => openModal("student")}>
-                    <div className="tile-icon blue"><Users size={20}/></div>
-                    <span>Add Student</span>
+                  <div className="tile-icon blue"><Users size={20} /></div>
+                  <span>Add Student</span>
                 </button>
                 <button className="action-tile" onClick={() => openModal("course")}>
-                    <div className="tile-icon purple"><Book size={20}/></div>
-                    <span>Add Course</span>
+                  <div className="tile-icon purple"><Book size={20} /></div>
+                  <span>Add Course</span>
                 </button>
                 <button className="action-tile" onClick={() => openModal("trainer")}>
-                    <div className="tile-icon orange"><UserCheck size={20}/></div>
-                    <span>Add Trainer</span>
+                  <div className="tile-icon orange"><UserCheck size={20} /></div>
+                  <span>Add Trainer</span>
                 </button>
                 <button className="action-tile" onClick={() => setActiveTab("enrollments")}>
-                    <div className="tile-icon green"><Clipboard size={20}/></div>
-                    <span>Enrollments</span>
+                  <div className="tile-icon green"><Clipboard size={20} /></div>
+                  <span>Enrollments</span>
                 </button>
-                
-             
+
+
               </div>
             </div>
 
@@ -358,25 +415,27 @@ function AdminDashboard() {
       );
     }
 
+
+
     // Other Tabs
     return (
-   <div className="generic-tab-view fade-in">
-    <div className="table-header-row">
-        <h3>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Management</h3>
+      <div className="generic-tab-view fade-in">
+        <div className="table-header-row">
+          <h3>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Management</h3>
 
-        {/* Hide Add Button for enrollments AND payments */}
-        {activeTab !== "enrollments" && activeTab !== "payments" &&  activeTab !=="assignments" && (
-            <button 
-                className="add-record-btn" 
-                onClick={() => openModal(activeTab.slice(0, -1))}
+          {/* Hide Add Button for enrollments AND payments */}
+          {activeTab !== "enrollments" && activeTab !== "payments" && activeTab !== "assignments" && (
+            <button
+              className="add-record-btn"
+              onClick={() => openModal(activeTab.slice(0, -1))}
             >
-                <Plus size={16} /> Add New
+              <Plus size={16} /> Add New
             </button>
-        )}
-    </div>
+          )}
+        </div>
 
-    {renderTable(activeTab)}
-</div>
+        {renderTable(activeTab)}
+      </div>
 
     );
   };
@@ -393,7 +452,7 @@ function AdminDashboard() {
             <span>System</span>
           </div>
         </div>
-        
+
         <nav className="sidebar-menu">
           <p className="menu-label">Main Menu</p>
           <button className={activeTab === "dashboard" ? "active" : ""} onClick={() => setActiveTab("dashboard")}>
@@ -409,30 +468,30 @@ function AdminDashboard() {
             <Book size={20} /> Courses
           </button>
           <button className={activeTab === "assignments" ? "active" : ""} onClick={() => setActiveTab("assignments")}>
-             <FileText size={20} /> Assignments
+            <FileText size={20} /> Assignments
           </button>
           <button className={activeTab === "enrollments" ? "active" : ""} onClick={() => setActiveTab("enrollments")}>
             <Clipboard size={20} /> Enrollments
           </button>
-           <button className={activeTab === "payments" ? "active" : ""} onClick={() => setActiveTab("payments")}>
+          <button className={activeTab === "payments" ? "active" : ""} onClick={() => setActiveTab("payments")}>
             <Clipboard size={20} /> Payments
           </button>
         </nav>
 
-     
+
         <div className="sidebar-footer">
           <div className="user-profile-widget">
-                <div className="avatar small">(A)</div>
-                <span>Admin</span>
-            </div>
-  <button 
-    className="logout-btn" 
-    onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
-  >
-    <LogOut size={18} />
-    <span>Sign Out</span>
-  </button>
-</div>
+            <div className="avatar small">(A)</div>
+            <span>Admin</span>
+          </div>
+          <button
+            className="logout-btn"
+            onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
+          >
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -444,18 +503,18 @@ function AdminDashboard() {
           </div>
           <div className="top-actions">
             <div className="search-box">
-                <Search size={16}/>
-                <input type="text" placeholder="Search..." />
+              <Search size={16} />
+              <input type="text" placeholder="Search..." />
             </div>
-            <button className="icon-btn-header"><Bell size={18}/></button>
+            <button className="icon-btn-header"><Bell size={18} /></button>
             <button className="primary-btn" onClick={() => openModal("student")}>
-               <Plus size={16}/> Add Student
+              <Plus size={16} /> Add Student
             </button>
           </div>
         </header>
 
         <div className="content-wrapper">
-            {renderContent()}
+          {renderContent()}
         </div>
       </main>
 

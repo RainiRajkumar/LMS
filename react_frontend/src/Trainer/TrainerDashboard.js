@@ -685,10 +685,14 @@ function TrainerDashboard() {
             score: parseFloat(scoreValue),
             feedback: gradeData.feedback || ""
         };
+        console.log(payload)
 
         try {
             // Updated Endpoint
-            const res = await axios.put('http://localhost:8000/trainer/grade-submission/', payload, apiHeaders);
+            const res = await axios.put('http://localhost:8000/trainer/grade-submission', payload, apiHeaders);
+            console.log("Grade submission response:", res);
+            console.log("ERROR DETAILS:", res.data);
+
             alert("Grade submitted successfully!");
             
             // Update local state to reflect 'graded' status immediately

@@ -29,7 +29,8 @@ from database import video_collection
 from dotenv import load_dotenv
 
 # Load environment variables
-client = genai.Client(api_key="AIzaSyAxKnfyAkMe9Zq_CdeIVdMIKdzTQ4sRAVk").aio
+api_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key).aio
 
 app = FastAPI()
 app.add_middleware(
@@ -955,7 +956,7 @@ async def get_attendance(course_id: int, payload: dict = Depends(verify_trainer)
 from pymongo import ReturnDocument
 from datetime import datetime
 
-@app.put("/trainer/grade-submission/", response_model=SubmissionResponse)
+@app.put("/trainer/grade-submission", response_model=SubmissionResponse)
 async def grade_submission(grade_data: Grade, payload: dict = Depends(verify_trainer)):
     """
     Updates a specific submission with a score and feedback.
@@ -1012,7 +1013,7 @@ async def grade_submission(grade_data: Grade, payload: dict = Depends(verify_tra
 
 
 
-# @app.post("/student/ask/", status_code=status.HTTP_201_CREATED)
+# @app.("/student/ask/", status_code=status.HTTP_201_CREATED)
 # async def ask_question(request: QuestionRequest, payload: dict = Depends(verify_student)):
 #     username = payload.get("sub")
 

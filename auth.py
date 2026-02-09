@@ -47,3 +47,5 @@ def verify_trainer(token:str=Depends(oauth2_scheme)):
             detail="Invalid token or not a trainer"
         )
     return payload
+
+

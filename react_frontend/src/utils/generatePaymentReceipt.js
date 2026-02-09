@@ -75,16 +75,21 @@ export async function generatePaymentReceipt({
       tableLineWidth: 0.5
     });
 
-    // Payment Details Section
-    let amountStr = 'N/A';
-    if (amount !== null && amount !== undefined) {
-      if (typeof amount === 'number') {
-        amountStr = amount.toFixed(2);
-      } else if (typeof amount === 'string') {
-        amountStr = amount;
-      }
-      if (!amountStr.startsWith('₹')) amountStr = `₹${amountStr}`;
+   // 6. Payment Details Section (FIXED PORTION)
+    let cleanAmount = amount;
+    // Ensure amount is handled correctly even if it comes as a string with a symbol
+    if (typeof amount === 'string') {
+        cleanAmount = amount.replace(/[₹,]/g, '').trim(); 
     }
+    
+    // Convert to number and format to 2 decimal places
+    const formattedAmountNum = parseFloat(cleanAmount).toFixed(2);
+    
+    // IMPORTANT: Use "Rs." because standard PDF fonts cannot render the "₹" symbol
+    const amountStr = `Rs. ${formattedAmountNum}`;
+
+    console.log("PDF Value Check:", amountStr); // Will log "Rs. 500.00"
+
 
     console.log("Formatted amount:/n", amountStr);
     console.log("Payment method:", paymentMethod);

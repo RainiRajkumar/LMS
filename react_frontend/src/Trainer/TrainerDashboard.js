@@ -5,6 +5,17 @@ import {
     AlertTriangle, CheckCircle, XCircle, Clock, AlertCircle as AlertIcon, Search,
     Edit2, Trash2, Save, X, ExternalLink
 } from 'react-feather';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  LabelList
+} from "recharts";
+
 import {  Menu } from 'react-feather';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import './TrainerDashboard.css';
@@ -287,7 +298,7 @@ function VideosPage({
                 if (!selectedCourseId) return;
                 setIsVideosLoading(true);
                 setError("");
-                axios.get(`http://localhost:8000/courses/${selectedCourseId}/videos/`, apiHeaders)
+                axios.get(`http://localhost:8000/courses/${selectedCourseId}/videos`, apiHeaders)
                         .then(res => setVideos(res.data))
                         .catch(err => setError("Failed to fetch videos: " + (err.response?.data?.detail || err.message)))
                         .finally(() => setIsVideosLoading(false));
@@ -668,30 +679,42 @@ function TrainerDashboard() {
                 newAttendance.push(response.data);
                 return newAttendance;
             });
-        } catch (err) { alert("Failed to mark attendance."); }
-    };
+        } catch(err)
+        {
+            alert("Failed to mark attendance");
+        }
+        };
+    
+    
 
-    // Updated: Grade based on Submission ID
+        // Updated: Grade based on Submission ID
     const handleSaveGrade = async (submissionId) => {
         const gradeData = studentGradeForms[submissionId];
+        const originalSubmission = submissions.find(s => s.id === submissionId);
 
-        if (!gradeData) { alert("No changes to save."); return; }
+        if (!gradeData && !originalSubmission) { alert("Submission not found."); return; }
         
-        const scoreValue = String(gradeData.score).trim();
+        // Determine final values (prefer form data, fallback to existing)
+        let finalScore = originalSubmission?.score;
+        let finalFeedback = originalSubmission?.feedback || "";
+
+        if (gradeData) {
+            if (gradeData.score !== undefined) finalScore = gradeData.score;
+            if (gradeData.feedback !== undefined) finalFeedback = gradeData.feedback;
+        }
+        
+        const scoreValue = String(finalScore !== null && finalScore !== undefined ? finalScore : "").trim();
         if (scoreValue === '') { alert("Score cannot be empty."); return; }
 
         const payload = {
             submission_id: submissionId,
             score: parseFloat(scoreValue),
-            feedback: gradeData.feedback || ""
+            feedback: finalFeedback
         };
-        console.log(payload)
-
         try {
             // Updated Endpoint
             const res = await axios.put('http://localhost:8000/trainer/grade-submission', payload, apiHeaders);
             console.log("Grade submission response:", res);
-            console.log("ERROR DETAILS:", res.data);
 
             alert("Grade submitted successfully!");
             
@@ -702,15 +725,33 @@ function TrainerDashboard() {
             alert("Error saving grade: " + errorDetail);
         }
     };
- 
+        // ... (rest of the function)
 
-    const handleModalSubmit = async (e) => {
+    
+    const handleModalSubmit= async(e)=> 
+    {
         e.preventDefault();
+           
         // Implementation remains same
         setIsModalOpen(false);
     };
 
     // --- RENDER ---
+    const assignmentDifficulty = useMemo(() => {
+  return assignments.map(a => {
+    const relatedSubs = submissions.filter(s => s.assignment_id === a.id && s.score !== null);
+    const avg =
+      relatedSubs.length > 0
+        ? relatedSubs.reduce((sum, s) => sum + s.score, 0) / relatedSubs.length
+        : 0;
+
+    return {
+      assignment: a.title,
+      avg_score: Math.round(avg)
+    };
+  });
+}, [assignments, submissions]);
+
     const renderMainContent = () => {
         if (loading) return <div className="td-loading-full"><Loader size={48} /><p>Loading Dashboard...</p></div>;
         if (error) return <div className="td-error-state"><AlertTriangle size={48} /><p>{error}</p></div>;
@@ -727,14 +768,14 @@ function TrainerDashboard() {
                             <div className="td-stat-card td-blue">
                                 <div className="td-stat-icon"><Users size={24} /></div>
                                 <div className="td-stat-info">
-                                    <span className="td-count">{stats.active_courses}</span>
+                                    <span className="td-count">{stats.total_students}</span>
                                     <span className="td-label">Active Students</span>
                                 </div>
                             </div>
                             <div className="td-stat-card td-purple">
                                 <div className="td-stat-icon"><BookOpen size={24} /></div>
                                 <div className="td-stat-info">
-                                    <span className="td-count">{stats.total_students}</span>
+                                    <span className="td-count">{stats.active_courses}</span>
                                     <span className="td-label">Active Courses</span>
                                 </div>
                             </div>
@@ -754,7 +795,41 @@ function TrainerDashboard() {
                                 <div className="td-stat-trend">Action needed</div>
                             </div>
                         </div>
-                        
+                        <div className="td-table-card" style={{ marginTop: "24px" }}>
+  <h3 style={{ textAlign: "center" }}>Assignment Difficulty</h3>
+  <p style={{ textAlign: "center", fontSize: "12px", color: "#777" }}>
+    Lower avg score = harder assignment
+  </p>
+
+  <ResponsiveContainer width="100%" height={260}>
+    <BarChart data={assignmentDifficulty}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="assignment" />
+      <YAxis domain={[0, 100]} />
+      <Tooltip />
+
+      <Bar
+        dataKey="avg_score"
+        radius={[8, 8, 0, 0]}
+        fill="#b0b0b0"
+      >
+        <LabelList
+          dataKey="avg_score"
+          position="top"
+          formatter={(v) => `Avg Score: ${v}`}
+          style={{ fill: "#000", fontWeight: 600 }}
+        />
+      </Bar>
+    </BarChart>
+  </ResponsiveContainer>
+
+  {/* Difficulty Legend */}
+  <div style={{ marginTop: "10px", fontSize: "13px" }}>
+    <div style={{ color: "red", fontWeight: 600 }}>→ Hard Assignment</div>
+    <div style={{ color: "green", fontWeight: 600 }}>→ Easy Assignment</div>
+  </div>
+</div>
+
                         {/* Quick Actions / Recent Activity Section could go here */}
                     </div>
                 );

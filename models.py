@@ -243,6 +243,11 @@ class Grade(BaseModel):
     feedback: str
 
 
+
+class GradeUpdate(BaseModel):
+    score: Optional[float] = None
+    feedback: Optional[str] = None
+
 class SubmissionResponse(BaseModel):
     id: int
     student_id: int
@@ -276,3 +281,19 @@ class TrainerStats(BaseModel):
 class AttendanceRecordResponse(AttendanceRecord):
     pass
 
+
+
+
+
+class RAGQuery(BaseModel):
+    query: str
+
+class AuditLog(BaseModel):
+    id: int
+    event_type: str
+    user: str
+    action: str
+    resource: str
+    details: dict
+    created_at: datetime
+    ip_address: str

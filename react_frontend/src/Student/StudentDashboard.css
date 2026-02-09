@@ -153,6 +153,15 @@ body {
   overflow-y: auto;
 }
 
+/* Hide scrollbar for sidebar navigation */
+.sidebar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-nav {
+  scrollbar-width: none; /* Firefox */
+}
+
 .nav-title {
   font-size: 0.7rem;
   font-weight: 700;
@@ -657,4 +666,48 @@ body {
     color: #b91c1c !important;
     border-color: #fecaca !important;
     animation: pulse 1.2s infinite;
+}
+
+
+.ai-response {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #1f2937;
+}
+
+.ai-response h1,
+.ai-response h2,
+.ai-response h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  color: #111827;
+}
+
+.ai-response ul {
+  padding-left: 20px;
+  margin: 10px 0;
+}
+
+.ai-response li {
+  margin-bottom: 6px;
+}
+
+.ai-response strong {
+  color: #111827;
+}
+
+.ai-response code {
+  background: #f3f4f6;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+}
+
+.ai-response pre {
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 12px 0;
 }

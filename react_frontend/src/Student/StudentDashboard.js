@@ -1,23 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRef } from 'react';
 import axios from 'axios';
-import {
-    Home, Book, CheckSquare, Award, Clipboard, User, Users, Calendar, LogOut, Plus, Loader,
-    AlertTriangle, CheckCircle, Clock, Search, BookOpen, Upload, ExternalLink, X, FileText,
-    Download, Cpu
-} from 'react-feather';
+import { Home, Book, CheckSquare, Award, Clipboard, User, Users, Calendar, LogOut, Plus, Loader,AlertTriangle, CheckCircle, Clock, Search, BookOpen, Upload, ExternalLink, X, FileText,Download, Cpu} from 'react-feather';
 import { MessageCircle, Send, ChevronRight, Mic, MicOff, Volume2, VolumeX, IndianRupee } from 'lucide-react';
 import './StudentDashboard.css';
 import GoogleCalenderAttendance from './GoogleCalenderAttendance';
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { generatePaymentReceipt } from "../utils/generatePaymentReceipt";
 
-// --- YOUTUBE PLAYER COMPONENT FOR COMPLETION TRACKING ---
 function YouTubePlayer({ videoId, onComplete }) {
     const playerRef = useRef(null);
     useEffect(() => {
-        // Load YouTube IFrame API if not loaded
         if (!window.YT) {
             const tag = document.createElement('script');
             tag.src = 'https://www.youtube.com/iframe_api';
@@ -36,7 +29,6 @@ function YouTubePlayer({ videoId, onComplete }) {
                 }
             });
         };
-        // If API already loaded
         if (window.YT && window.YT.Player) {
             player = new window.YT.Player(playerRef.current, {
                 videoId,
@@ -55,22 +47,18 @@ function YouTubePlayer({ videoId, onComplete }) {
     }, [videoId, onComplete]);
     return <div ref={playerRef} style={{ width: '100%', height: 240 }} />;
 }
-
 const formatDate = (date) => {
     if (!date) return 'N/A';
     const d = new Date(date);
-    // Adjust for timezone to prevent day shifting
     const userTimezoneOffset = d.getTimezoneOffset() * 60000;
     const adjustedDate = new Date(d.getTime() - userTimezoneOffset);
     return adjustedDate.toISOString().split('T')[0];
 };
-
 const formatDateTimeReadable = (isoString) => {
     if (!isoString) return 'N/A';
     const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(isoString).toLocaleDateString(undefined, options);
 };
-
 const getLetterGrade = (score, maxScore) => {
     if (score === null || score === undefined || !maxScore) return '-';
     const percentage = (score / maxScore) * 100;
@@ -80,63 +68,43 @@ const getLetterGrade = (score, maxScore) => {
     if (percentage >= 60) return 'D';
     return 'F';
 };
-
 const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '';
-
 function StudentDashboard() {
-        // Example: Track watched/completed videos (simulate with localStorage or state)
-        const [watchedVideos, setWatchedVideos] = useState(() => {
-            const saved = localStorage.getItem('watchedVideos');
-            return saved ? JSON.parse(saved) : {};
+    const [watchedVideos, setWatchedVideos] = useState(() => {
+        const saved = localStorage.getItem('watchedVideos');
+        return saved ? JSON.parse(saved) : {};
+    });
+    const markVideoWatched = (videoId) => {
+        setWatchedVideos(prev => {
+            const updated = { ...prev, [videoId]: true };
+            localStorage.setItem('watchedVideos', JSON.stringify(updated));
+            return updated;
         });
-
-        // Mark video as watched (simulate)
-        const markVideoWatched = (videoId) => {
-            setWatchedVideos(prev => {
-                const updated = { ...prev, [videoId]: true };
-                localStorage.setItem('watchedVideos', JSON.stringify(updated));
-                return updated;
-            });
-        };
+    };
     const [activeTab, setActiveTab] = useState('dashboard');
-
-    // --- STATE ---
     const [student, setStudent] = useState(null);
     const [enrolledCourses, setEnrolledCourses] = useState([]);
     const [allCourses, setAllCourses] = useState([]);
-
-    // Course Specific Data
     const [assignments, setAssignments] = useState([]);
     const [submissions, setSubmissions] = useState([]); // Stores data from /student/submissions/
     const [attendance, setAttendance] = useState([]);
-
-
     const [showPayment, setShowPayment] = useState(false);
     const [selectedEnrollment, setSelectedEnrollment] = useState(null);
     const [paymentMethod, setPaymentMethod] = useState('UPI');
-
-    // UI states
     const [loading, setLoading] = useState(true);
     const [isCourseDataLoading, setIsCourseDataLoading] = useState(false);
     const [error, setError] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-
-
-    // Video Content State
     const [videos, setVideos] = useState([]);
     const [isVideosLoading, setIsVideosLoading] = useState(false);
+    const [videoProgressMap, setVideoProgressMap] = useState({});
     const [videoErrorIds, setVideoErrorIds] = useState([]);
-
-
-    // Submission Modal State
     const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
     const [currentAssignment, setCurrentAssignment] = useState(null);
     const [submissionForm, setSubmissionForm] = useState({ file_url: '', comments: '' });
-
     const token = localStorage.getItem('token');
     const apiHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
-    // --- PAYMENT INPUT STATE (UI ONLY) ---
     const [paymentForm, setPaymentForm] = useState({
         upiId: '',
         cardNumber: '',
@@ -148,23 +116,16 @@ function StudentDashboard() {
         accountNumber: '',
         ifsc: ''
     });
-
     const handleFormChange = (e) => {
         setPaymentForm({ ...paymentForm, [e.target.name]: e.target.value });
     };
-
-    const API_KEY = "AIzaSyAxKnfyAkMe9Zq_CdeIVdMIKdzTQ4sRAVk";
-
-
-
+    const API_KEY = "AIzaSyAlhJn68M14XxCXpvvSdJ9W-cTPOEFm9aw";
     const [quote, setQuote] = useState("Loading today's focus...");
     const [quoteLoading, setQuoteLoading] = useState(true);
-
     useEffect(() => {
         const fetchDailyQuote = async () => {
             const todayDate = new Date().toDateString();
             const savedData = localStorage.getItem("dailyFocus");
-
             if (savedData) {
                 const parsedData = JSON.parse(savedData);
                 if (parsedData.date === todayDate) {
@@ -173,22 +134,16 @@ function StudentDashboard() {
                     return;
                 }
             }
-
             try {
-                // Gemini API client usage (adjust to your actual client)
                 const genAI = new GoogleGenerativeAI(API_KEY);
                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
                 const prompt = "Give me one short, powerful, unique motivational quote for a student learning coding. Do not include the author name. Do not include quotation marks.";
-
                 const result = await model.generateContent(prompt);
                 const responseText = result.response.text().replace(/"/g, "");
-
                 localStorage.setItem(
                     "dailyFocus",
                     JSON.stringify({ date: todayDate, text: responseText })
                 );
-
                 setQuote(responseText);
             } catch (error) {
                 console.error("Error fetching quote:", error);
@@ -197,46 +152,36 @@ function StudentDashboard() {
                 setQuoteLoading(false);
             }
         };
-
         fetchDailyQuote();
     }, []);
-
     const [aiHistory, setAiHistory] = useState([]);
     const [newQueryText, setNewQueryText] = useState("");
     const [selectedChat, setSelectedChat] = useState(null);
     const [isAIGenerating, setIsAIGenerating] = useState(false);
-
     const [isListening, setIsListening] = useState(false);
     const [speechSupported, setSpeechSupported] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
-
     const [selectedLanguage, setSelectedLanguage] = useState("en-US");
     const [voiceSpeed, setVoiceSpeed] = useState(1);
     const [isVoiceMode, setIsVoiceMode] = useState(false); // default: false
-
-
     // const studentId = loggedInStudentId; // <-- Replace with real student ID
-
     useEffect(() => {
         setSpeechSupported("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
     }, []);
-
-    // 2. Load History ONLY after 'student' data is loaded
+   // 2. Load History ONLY after 'student' data is loaded
     useEffect(() => {
         if (student) {
             loadHistory();
         }
     }, [student]); // Dependency ensures this runs once 'student' is not null
-
     // --- FUNCTIONS ---
-
     const loadHistory = async () => {
         // Safety check: ensure student exists and has an ID
         // Note: Check your API response. It is usually 'student.id' or 'student.student_id'
         const currentStudentId = student.student_id || student.id;
+        console.log("Loading AI history for student ID:", currentStudentId);
 
         if (!currentStudentId) return;
-
         try {
             const res = await fetch(`http://localhost:8000/student/history/${currentStudentId}`, {
                 headers: {
@@ -251,14 +196,10 @@ function StudentDashboard() {
             console.error("Failed to load AI history", err);
         }
     };
-
     const handleSubmitQuery = async () => {
         if (!newQueryText.trim() || !student) return;
-
         const currentStudentId = student.studentId || student.id;
-
         setIsAIGenerating(true);
-
         try {
             const res = await axios.post(
                 "http://localhost:8000/student/ask/",
@@ -266,12 +207,10 @@ function StudentDashboard() {
                     student_id: currentStudentId,
                     query: newQueryText,
                     language: selectedLanguage,
-                    voice_mode: isVoiceMode,     
+                    voice_mode: isVoiceMode,
                 },
                 apiHeaders
             );
-
-            // Update history
             setAiHistory(prev => [res.data, ...prev]);
             setNewQueryText("");
         } catch (err) {
@@ -366,6 +305,7 @@ function StudentDashboard() {
             console.log(assRes.data);
             setSubmissions(subRes.data);
             setAttendance(attRes.data);
+            console.log(attRes.data)
         } catch (err) {
             console.error("Error fetching course data", err);
             // Optional: setError("Failed to load course data");
@@ -504,24 +444,66 @@ function StudentDashboard() {
     // --- VIEWS ---
 
     useEffect(() => {
-    if (!selectedCourseId) return;
-    setIsVideosLoading(true);
-    axios.get(`http://localhost:8000/courses/${selectedCourseId}/videos/`, apiHeaders)
-        .then(res => setVideos(res.data))
-        .catch(() => setVideos([]))
-        .finally(() => setIsVideosLoading(false));
-}, [selectedCourseId, apiHeaders]);
+        if (!selectedCourseId) return;
+        setIsVideosLoading(true);
+        axios.get(`http://localhost:8000/courses/${selectedCourseId}/videos/`, apiHeaders)
+            .then(res => setVideos(res.data))
+            .catch(() => setVideos([]))
+            .finally(() => setIsVideosLoading(false));
+    }, [selectedCourseId, apiHeaders]);
+
+    // const handleVideoError = (id) => {
+    //     setVideoErrorIds(prev => [...prev, id]);
+    // };
+
+    // const getCourseProgress = () => {
+    //     const total = assignments.length;
+    //     const completed = submissions.filter(s => s.score !== null).length;
+    //     return total > 0 ? Math.round((completed / total) * 100) : 0;
+    // };
+
+    useEffect(() => {
+        if (!selectedCourseId) return;
+
+        setIsVideosLoading(true);
+
+        axios
+            .get(`http://localhost:8000/courses/${selectedCourseId}/videos/`, apiHeaders)
+            .then(res => setVideos(res.data))
+            .catch(() => setVideos([]))
+            .finally(() => setIsVideosLoading(false));
+    }, [selectedCourseId, apiHeaders]);
 
 
-const handleVideoError = (id) => {
-    setVideoErrorIds(prev => [...prev, id]);
-};
+    const handleVideoError = (videoId) => {
+        setVideoErrorIds(prev => [...prev, videoId]);
+    };
 
-const getCourseProgress = () => {
-    const total = assignments.length;
-    const completed = submissions.filter(s => s.score !== null).length;
-    return total > 0 ? Math.round((completed / total) * 100) : 0;
-};
+
+    const handleVideoProgress = (videoId, e) => {
+        const video = e.target;
+
+        if (!video.duration || isNaN(video.duration)) return;
+
+        const percent = Math.round((video.currentTime / video.duration) * 100);
+
+        setVideoProgressMap(prev => ({
+            ...prev,
+            [videoId]: percent
+        }));
+    };
+
+
+    const getCourseProgress = () => {
+        if (videos.length === 0) return 0;
+
+        const completed = videos.filter(
+            v => (videoProgressMap[v.id] || 0) === 100
+        ).length;
+
+        return Math.round((completed / videos.length) * 100);
+    };
+
 
     const renderVideosTab = () => (
         <div className="management-page">
@@ -594,8 +576,9 @@ const getCourseProgress = () => {
                                                 width="100%"
                                                 controls
                                                 src={video.video_url}
+                                                onTimeUpdate={(e) => handleVideoProgress(video.id, e)}
+                                                onEnded={(e) => handleVideoProgress(video.id, e)}
                                                 onError={() => handleVideoError(video.id)}
-                                                onEnded={() => markVideoWatched(video.id)}
                                             >
                                                 Your browser does not support the video tag.
                                             </video>
@@ -609,6 +592,7 @@ const getCourseProgress = () => {
             )}
         </div>
     );
+
 
 
     const renderCourseSelector = () => (
@@ -1443,7 +1427,4 @@ const getCourseProgress = () => {
         </div>
     );
 }
-
-
-
 export default StudentDashboard;

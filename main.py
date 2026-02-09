@@ -2,17 +2,20 @@ from google import genai
 from fastapi import FastAPI, Depends, Body, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-from typing import List
+from typing import List, Optional
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from passlib.context import CryptContext
 from datetime import datetime
 from mail import send_enrollment_email
-from models import EnrollmentResponse,EnrollmentAdminResponse,AssignmentResponse,AttendanceRecordResponse, StudentUpdateModel, TrainerUpdateModel, VideoModel, VideoResponse
+from models import CourseModel, CourseResponse, EnrollmentResponse,EnrollmentAdminResponse,AssignmentResponse,AttendanceRecordResponse, RAGQuery, StudentUpdateModel, TrainerModel, TrainerResponse, TrainerUpdateModel, VideoModel, VideoResponse
 from crud import enrollment_helper,get_course_with_seats, get_trainer_name_for_course,trainer_helper,assignment_helper,attendance_helper,submission_helper
-from database import courses_collection, enrollments_collection,student_collection,trainer_collection,assignment_collection,submission_collection,attendance_collection,ai_tutor_collection,payment_collection
-from models import CourseModel, CourseResponse,TrainerModel,TrainerResponse,TrainerStats,SubmissionCreate,SubmissionResponse,SubmissionStatus,PaymentAdminResponse,PaymentModel,PaymentResponse
-from models import LoginRequest, StudentModel, StudentResponse, Token,StudentEnrollmentResponse,AttendanceRecord,Assignment,Grade,QuestionRequest,InteractionModel,InteractionResponse
+from database import courses_collection, enrollments_collection,student_collection,trainer_collection,assignment_collection,submission_collection,attendance_collection,ai_tutor_collection,payment_collection,audit_collection
+from models import LoginRequest, StudentModel, StudentResponse, SubmissionCreate,SubmissionResponse,SubmissionStatus,PaymentAdminResponse,PaymentModel,PaymentResponse,Token,StudentEnrollmentResponse,AttendanceRecord,Assignment,Grade,QuestionRequest,InteractionModel,InteractionResponse
 from auth import verify_admin,create_access_token,verify_student,verify_trainer
 from crud import student_helper,get_next_sequence,course_helper,assignment_helper,interaction_helper
+from audit import AuditLogger, log_grade_change, log_login_attempt
+from fastapi import Request
 from fastapi import FastAPI, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse 
 import hashlib
@@ -21,16 +24,31 @@ from passlib.context import CryptContext
 import bcrypt
 import passlib
 from fastapi.middleware.cors import CORSMiddleware
-from pymongo import ReturnDocument
+
+import langchain
+print(langchain.__version__)  # Should be 1.0+ 
+print("langchain_core version:", langchain.__version__)
 print("bcrypt version:", bcrypt.__version__)
 print("passlib version:", passlib.__version__)
 import os
 from database import video_collection
 from dotenv import load_dotenv
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores.faiss import FAISS
+from langchain_google_genai import (
+    GoogleGenerativeAIEmbeddings,
+    ChatGoogleGenerativeAI
+) 
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+
+
+
 
 # Load environment variables
-api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key).aio
+client = genai.Client(api_key="AIzaSyAlhJn68M14XxCXpvvSdJ9W-cTPOEFm9aw").aio
 
 app = FastAPI()
 app.add_middleware(
@@ -41,7 +59,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 def hash_password(password: str) -> str:
     encoded = password.encode("utf-8")[:72]
@@ -55,33 +75,59 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # ------------------- Admin Login -------------------
 @app.post("/admin/login", response_model=Token)
-async def admin_login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Hardcoded admin credentials
+async def admin_login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends()
+):
     ADMIN_USERNAME = "admin"
-    ADMIN_PASSWORD = "admin123"  
+    ADMIN_PASSWORD = "admin123"
 
-    if form_data.username != ADMIN_USERNAME or form_data.password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin credentials")    
-    print({form_data.username},{form_data.password})
-    token = create_access_token({"sub": form_data.username, "role": "admin"})
-    return {"access_token": token, "token_type": "bearer"}
+    success = (
+        form_data.username == ADMIN_USERNAME and
+        form_data.password == ADMIN_PASSWORD
+    )
+
+    # 🔐 Audit log for BOTH success & failure
+    await log_login_attempt(form_data.username, success, request)
+
+    if not success:
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
+
+    token = create_access_token({
+        "sub": form_data.username,
+        "role": "admin"
+    })
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 
 @app.post("/student/login", response_model=Token)
-async def student_login(login: LoginRequest):
+async def student_login(login: LoginRequest, request: Request):
     student = await student_collection.find_one({"username": login.username})
-    if not student or not verify_password(login.password, student["hashed_password"]):
+    success = student and verify_password(login.password, student["hashed_password"])
+
+    # Log the login attempt
+    await log_login_attempt(login.username, success, request)
+
+    if not success:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"sub": student["username"], "role": "student"})
     return {"access_token": token, "token_type": "bearer"}
     
 @app.post("/trainer/login", response_model=Token)
-async def trainer_login(login: LoginRequest):
+async def trainer_login(login: LoginRequest, request: Request):
     trainer = await trainer_collection.find_one({"username": login.username})
-    
-    if not trainer or not verify_password(login.password, trainer["hashed_password"]):
+    success = trainer and verify_password(login.password, trainer["hashed_password"])
+
+    # Log the login attempt
+    await log_login_attempt(login.username, success, request)
+
+    if not success:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": trainer["username"], "role": "trainer"})    
+    token = create_access_token({"sub": trainer["username"], "role": "trainer"})
     return {"access_token": token, "token_type": "bearer"}
 
 # ------------------- Example Protected Routes -------------------
@@ -290,7 +336,7 @@ async def add_video(video: VideoModel, trainer=Depends(verify_trainer)):
     return VideoResponse(**video_doc)
 
 
-@app.get("/courses/{course_id}/videos/", response_model=List[VideoResponse])
+@app.get("/courses/{course_id}/videos", response_model=List[VideoResponse])
 async def get_course_videos(course_id: int):
     videos = []
     async for video in video_collection.find({"course_id": course_id}):
@@ -505,6 +551,36 @@ async def count_full_courses():
         if enrolled_count >= course['seats']:
             full_count += 1
     return full_count
+
+
+from fastapi import APIRouter
+
+# NO user dependency (verify_student) here, because course counts are public info
+@app.get("/courses/stats") 
+async def get_course_statistics():
+    """
+    Use this to answer questions about course popularity, 
+    number of enrolled students, or course fees.
+    """
+    courses_cursor = courses_collection.find({})
+    results = []
+    
+    async for course in courses_cursor:
+        # Assuming you store enrollment count in the course document 
+        # OR you calculate it dynamically:
+        
+        # dynamic calculation example:
+        count = await enrollments_collection.count_documents({"course_id": course["id"]})
+        
+        results.append({
+            "course_title": course["title"],
+            "description": course["description"],
+            "total_enrolled": count, # This will return 29 for Python
+            "fee": course.get("course_fee"),
+            "trainer": course.get("trainer_name", "N/A")
+        })
+    
+    return results
 
 
 @app.get("/dashboard")
@@ -957,60 +1033,123 @@ from pymongo import ReturnDocument
 from datetime import datetime
 
 @app.put("/trainer/grade-submission", response_model=SubmissionResponse)
-async def grade_submission(grade_data: Grade, payload: dict = Depends(verify_trainer)):
-    """
-    Updates a specific submission with a score and feedback.
-    Changes status from 'pending'/'submitted' to 'graded'.
-    """
-    username = payload["sub"]
-    trainer = await trainer_collection.find_one({"username": username})
+async def grade_submission(
+    grade: Grade,
+    request: Request,
+    payload: dict = Depends(verify_trainer)
+):
+    
 
-    # 1. Find the Submission
-    submission = await submission_collection.find_one({"id": grade_data.submission_id})
+    # 🔹 Get trainer from token
+    trainer = await trainer_collection.find_one(
+        {"username": payload["sub"]}
+    )
+
+    if not trainer:
+        raise HTTPException(status_code=404, detail="Trainer not found")
+
+    # 🔹 Find submission
+    submission = await submission_collection.find_one(
+        {"id": grade.submission_id}
+    )
+
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    # 2. Find the Assignment (To check Max Score and Course ownership)
-    assignment = await assignment_collection.find_one({"id": submission["assignment_id"]})
-    if not assignment:
-        raise HTTPException(status_code=404, detail="Associated assignment data not found")
+    old_score = submission.get("score")
 
-    # 3. Security Check: Does the trainer teach this course?
-    if assignment["course_id"] not in trainer.get("course_ids", []):
-        raise HTTPException(status_code=403, detail="You are not authorized to grade assignments for this course")
+    update_data = {}
 
-    # 4. Validation: Score vs Max Score
-    if grade_data.score > assignment["max_score"]:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Score ({grade_data.score}) cannot exceed max score of {assignment['max_score']}"
-        )
+    if grade.score is not None:
+        update_data["score"] = grade.score
 
-    # 5. Update the Submission Record
-    update_data = {
-        "$set": {
-            "score": grade_data.score,
-            "feedback": grade_data.feedback,
-            "status": SubmissionStatus.GRADED, # Sets status to "graded"
-            "graded_by": trainer["id"],        # Tracks which trainer graded it
-            "graded_at": datetime.utcnow()
-        }
-    }
+    if grade.feedback is not None:
+        update_data["feedback"] = grade.feedback
 
-    updated_record = await submission_collection.find_one_and_update(
-        {"id": grade_data.submission_id},
-        update_data,
-        return_document=ReturnDocument.AFTER
+    update_data.update({
+        "graded_by": trainer["id"],   # ✅ FIX
+        "graded_at": datetime.utcnow(),
+        "status": SubmissionStatus.GRADED.value,
+        "score":grade.score,
+        "feedback":grade.feedback
+    })
+
+    await submission_collection.update_one(
+        {"id": grade.submission_id},
+        {"$set": update_data}
     )
 
-    return submission_helper(updated_record)
+    # 🔐 Audit log ONLY if score changed
+    if grade.score is not None and grade.score != old_score:
+        await log_grade_change(
+            trainer_username=trainer["username"],
+            assignment_id=submission["assignment_id"],
+            student_id=submission["student_id"],
+            old_score=old_score,
+            new_score=grade.score,
+            request=request
+        )
 
+    return {
+        "id": submission["id"],
+        "student_id": submission["student_id"],
+        "assignment_id": submission["assignment_id"],
+        "file_url": submission["file_url"],
+        "submitted_at": submission["submitted_at"],
+        "status": SubmissionStatus.GRADED.value,
+        "score": grade.score,
+        "feedback": grade.feedback,
+        "graded_by": trainer["id"],
+        "graded_at": update_data["graded_at"]
+    }
 
+# async def grade_submission(grade_data: Grade, payload: dict = Depends(verify_trainer)):
+#     """
+#     Updates a specific submission with a score and feedback.
+#     Changes status from 'pending'/'submitted' to 'graded'.
+#     """
+#     username = payload["sub"]
+#     trainer = await trainer_collection.find_one({"username": username})
 
+#     # 1. Find the Submission
+#     submission = await submission_collection.find_one({"id": grade_data.submission_id})
+#     if not submission:
+#         raise HTTPException(status_code=404, detail="Submission not found")
 
+#     # 2. Find the Assignment (To check Max Score and Course ownership)
+#     assignment = await assignment_collection.find_one({"id": submission["assignment_id"]})
+#     if not assignment:
+#         raise HTTPException(status_code=404, detail="Associated assignment data not found")
 
+#     # 3. Security Check: Does the trainer teach this course?
+#     if assignment["course_id"] not in trainer.get("course_ids", []):
+#         raise HTTPException(status_code=403, detail="You are not authorized to grade assignments for this course")
 
+#     # 4. Validation: Score vs Max Score
+#     if grade_data.score > assignment["max_score"]:
+#         raise HTTPException(
+#             status_code=400, 
+#             detail=f"Score ({grade_data.score}) cannot exceed max score of {assignment['max_score']}"
+#         )
 
+#     # 5. Update the Submission Record
+#     update_data = {
+#         "$set": {
+#             "score": grade_data.score,
+#             "feedback": grade_data.feedback,
+#             "status": SubmissionStatus.GRADED, # Sets status to "graded"
+#             "graded_by": trainer["id"],        # Tracks which trainer graded it
+#             "graded_at": datetime.utcnow()
+#         }
+#     }
+
+#     updated_record = await submission_collection.find_one_and_update(
+#         {"id": grade_data.submission_id},
+#         update_data,
+#         return_document=ReturnDocument.AFTER
+#     )
+
+    # return submission_helper(updated_record)
 
 
 # @app.("/student/ask/", status_code=status.HTTP_201_CREATED)
@@ -1208,3 +1347,391 @@ async def admin_all_payments(payload: dict = Depends(verify_admin)):
             )
 
     return final_output
+
+vectorstore = None  # Initialize global variable
+
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+print("GEMINI KEY LOADED:", GEMINI_API_KEY[:6], "****")
+
+# -------------------------
+# 1. Build Documents
+# -------------------------
+async def build_documents():
+    docs = []
+
+    # 1. Students
+    # use 'async for' because you are using Motor (Async MongoDB)
+    async for s in student_collection.find():
+        docs.append(
+            Document(
+                page_content=f"""
+Student Name: {s.get('name')}
+Age: {s.get('age')}
+Course: {s.get('course')}
+Email: {s.get('email')}
+"""
+            )
+        )
+
+    # 2. Courses
+    async for c in courses_collection.find():
+        docs.append(
+            Document(
+                page_content=f"""
+Course Title: {c.get('title')}
+Description: {c.get('description')}
+Fee: {c.get('course_fee')}
+Seats: {c.get('seats')}
+"""
+            )
+        )
+
+    # 3. Trainers
+    async for t in trainer_collection.find():
+        docs.append(
+            Document(
+                page_content=f"""
+Trainer Name: {t.get('name')}
+Email: {t.get('email')}
+Assigned Courses: {t.get('course_ids')}
+"""
+            )
+        )
+
+    # 4. Payments
+  # 4. Payments
+    async for p in payment_collection.find():
+        student = await student_collection.find_one(
+        {"_id": p.get("student_id")}
+    )
+
+    student_name = student.get("name") if student else "Unknown"
+
+    docs.append(
+        Document(
+            page_content=f"""
+Payment Details:
+Student Name: {student_name}
+Payment Amount: {p.get('amount')}
+Payment Status: {p.get('status')}
+"""
+        )
+    )
+
+
+
+    # 5. Enrollments
+    async for e in enrollments_collection.find():
+        docs.append(
+            Document(
+                page_content=f"""
+Enrollment:
+Student ID: {e.get('student_id')}
+Course ID: {e.get('course_id')}
+"""
+            )
+        )
+
+    return docs
+
+# -------------------------
+# 2. Initialize Vector Store (Run Once)
+# -------------------------
+async def initialize_vector_store():
+    global vectorstore
+    print("🔄 Loading data and building Vector Store...")
+
+    try:
+        documents = await build_documents()
+
+        if not documents:
+            documents = [Document(page_content="LMS system initialized with no data")]
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=600,
+            chunk_overlap=80
+        )
+        split_docs = splitter.split_documents(documents)
+
+        if not split_docs:
+            print("⚠️ Documents were empty after splitting.")
+            return
+
+        # ✅ LOCAL EMBEDDINGS (NO QUOTA ISSUES)
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+
+        vectorstore = FAISS.from_documents(split_docs, embeddings)
+        print("✅ Vector Store built successfully!")
+
+    except Exception as e:
+        print(f"❌ Error building vector store: {e}")
+
+
+# -------------------------
+# Lifecycle Events
+# -------------------------
+@app.on_event("startup")
+async def startup_event():
+    await initialize_vector_store()
+
+@app.post("/refresh-data")
+async def refresh_knowledge_base():
+    await initialize_vector_store()
+    return {"message": "Knowledge base refreshed."}
+
+# -------------------------
+# 3. RAG Endpoint
+# -------------------------
+@app.post("/query")
+async def rag_query(payload: RAGQuery):
+    global vectorstore
+    
+    if vectorstore is None:
+        return {"answer": "System is initializing or no data available. Please try again later."}
+
+    try:
+        # 1️⃣ Retriever
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 20})
+
+        # 2️⃣ Gemini LLM (Uses Key from .env)
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            temperature=0,
+            google_api_key=GEMINI_API_KEY
+        )
+
+        # 3️⃣ Prompt
+        prompt = PromptTemplate.from_template("""
+        You are an LMS Admin Assistant.
+        Answer ONLY using the context below.
+        If the answer is not found, say "I don't have that information."
+
+        Context:
+        {context}
+
+        Question:
+        {question}
+        """)
+
+        # 4️⃣ Chain
+        rag_chain = (
+            {"context": retriever, "question": RunnablePassthrough()}
+            | prompt
+            | llm
+        )
+
+        # 5️⃣ Invoke
+        answer = rag_chain.invoke(payload.query)
+
+        if hasattr(answer, 'content'):
+            return {"answer": answer.content}
+        return {"answer": answer}
+
+    except Exception as e:
+        return {"answer": f"Error: {str(e)}"}
+    
+
+
+
+from datetime import datetime
+from models import AuditLog
+
+@app.get("/auditlogs")
+async def get_audit_logs(
+    event_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    admin=Depends(verify_admin)
+):
+    query = {}
+    if event_type: 
+        query["event_type"] = event_type
+
+    skip = (page - 1) * limit
+
+    cursor = (
+        audit_collection
+        .find(query)
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+
+    logs = []
+    i = 0
+    async for log in cursor:
+        log["id"] = skip + i + 1
+        log.pop("_id")
+        logs.append(AuditLog(**log))
+        i += 1
+
+    total = await audit_collection.count_documents(query)
+
+    return {
+        "data": logs,
+        "total": total,
+        "page": page,
+        "limit": limit
+    }
+# @app.get("/auditlogs/stats")
+# async def audit_stats(admin=Depends(verify_admin)):
+#     pipeline = [
+#         {
+#             "$group": {
+#                 "_id": "$event_type",
+#                 "count": {"$sum": 1}
+#             }
+#         }
+#     ]
+
+#     results = await audit_collection.aggregate(pipeline).to_list(None)
+
+#     stats = {item["_id"]: item["count"] for item in results}
+
+#     return {
+#         "total_logs": sum(stats.values()),
+#         "login_attempts": stats.get("LOGIN_ATTEMPT", 0),
+#         "grade_changes": stats.get("GRADE_CHANGE", 0),
+#         "payments": stats.get("PAYMENT_ACTION", 0),
+#         "admin_ops": stats.get("ADMIN_OPERATION", 0)
+#     }
+
+
+@app.get("/auditlogs/stats")
+async def audit_stats(admin=Depends(verify_admin)):
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$event_type",
+                "count": {"$sum": 1}
+            }
+        }
+    ]
+
+    result = await audit_collection.aggregate(pipeline).to_list(None)
+    stats = {r["_id"]: r["count"] for r in result}
+
+    return {
+        "total_logs": sum(stats.values()),
+        "login_attempts": stats.get("LOGIN_ATTEMPT", 0),
+        "grade_changes": stats.get("GRADE_CHANGE", 0),
+        "payments": stats.get("PAYMENT_ACTION", 0),
+        "admin_ops": stats.get("ADMIN_OPERATION", 0)
+    }
+
+
+
+
+@app.get("/admin/analytics/course-completion")
+async def course_completion(payload: dict = Depends(verify_admin)):
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$course_id",
+                "total": {"$sum": 1},
+                "completed": {
+                    "$sum": {
+                        "$cond": [{"$eq": ["$status", "COMPLETED"]}, 1, 0]
+                    }
+                }
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "course_id": "$_id",
+                "completion_rate": {
+                    "$round": [
+                        {"$multiply": [{"$divide": ["$completed", "$total"]}, 100]},
+                        2
+                    ]
+                }
+            }
+        }
+    ]
+    return await enrollments_collection.aggregate(pipeline).to_list(None)
+
+
+@app.get("/admin/analytics/performance-trend")
+async def student_performance(payload: dict = Depends(verify_admin)):
+    pipeline = [
+        {
+            "$match": {
+                "score": {"$ne": None},
+                "graded_at": {"$ne": None}
+            }
+        },
+        {
+            "$group": {
+                "_id": {
+                    "year": {"$year": "$graded_at"},
+                    "month": {"$month": "$graded_at"}
+                },
+                "avg_score": {"$avg": "$score"}
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "year": "$_id.year",
+                "month": "$_id.month",
+                "avg_score": {"$round": ["$avg_score", 2]}
+            }
+        },
+        {"$sort": {"year": 1, "month": 1}}
+    ]
+    return await submission_collection.aggregate(pipeline).to_list(None)
+
+
+@app.get("/admin/analytics/assignment-difficulty")
+async def assignment_difficulty(payload: dict = Depends(verify_admin)):
+    pipeline = [
+        {
+            "$match": {
+                "score": {"$ne": None}
+            }
+        },
+        {
+            "$group": {
+                "_id": "$assignment_id",
+                "avg_score": {"$avg": "$score"}
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "assignment_id": "$_id",
+                "avg_score": {"$round": ["$avg_score", 2]}
+            }
+        },
+        {"$sort": {"avg_score": 1}}
+    ]
+    return await submission_collection.aggregate(pipeline).to_list(None)
+
+
+@app.get("/admin/analytics/revenue")
+async def payment_revenue(payload: dict = Depends(verify_admin)):
+    pipeline = [
+        {
+            "$group": {
+                "_id": {
+                    "year": {"$year": "$paid_on"},
+                    "month": {"$month": "$paid_on"}
+                },
+                "revenue": {"$sum": "$amount"}
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "year": "$_id.year",
+                "month": "$_id.month",
+                "revenue": 1
+            }
+        },
+        {"$sort": {"year": 1, "month": 1}}
+    ]
+    return await payment_collection.aggregate(pipeline).to_list(None)

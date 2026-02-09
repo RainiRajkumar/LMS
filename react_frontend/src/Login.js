@@ -159,9 +159,14 @@
 
 
 
-import React, { useState } from "react";
+import { useState } from "react";
 import axios from "axios";
 import { User, Lock, ArrowRight, Loader, ArrowLeft } from "react-feather";
+import * as React from 'react';
+import Button from '@mui/material/Button';
+import Snackbar, { SnackbarCloseReason } from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+
 import "./Login.css";
 
 function Login() {
@@ -173,6 +178,14 @@ function Login() {
   const [success, setSuccess] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  const handleSnackbarClose = (event, reason) => {
+  if (reason === 'clickaway') return;
+  setSnackbarOpen(false);
+};
+
+
 
   // Exact Colors from the video
   const roleData = {
@@ -223,6 +236,8 @@ function Login() {
       setSuccess(true);
       setMessage("Login Successful!");
       setMessageType("success");
+      setSnackbarOpen(true);
+
 
       setTimeout(() => {
         if (role === "admin") window.location.href = "/admin/dashboard";
@@ -235,6 +250,7 @@ function Login() {
       setTimeout(() => setShake(false), 500);
       setMessage("Invalid credentials! Please try again");
       setMessageType("error");
+      setSnackbarOpen(true);
     } finally {
       if (!success) setLoading(false);
     }
@@ -305,7 +321,21 @@ function Login() {
           <p>Please sign in to continue.</p>
         </div>
 
-        {message && <div className={`alert ${messageType}`}>{message}</div>}
+<Snackbar
+  open={snackbarOpen}
+  autoHideDuration={3000}
+  onClose={handleSnackbarClose}
+  anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+>
+  <Alert
+    onClose={handleSnackbarClose}
+    severity={messageType === "success" ? "success" : "error"}
+    variant="filled"
+    sx={{ width: '100%' }}
+  >
+    {message}
+  </Alert>
+</Snackbar>
 
         <form onSubmit={handleLogin} className="login-form">
           <div className="input-group">

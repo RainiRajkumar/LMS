@@ -1,5 +1,6 @@
 from typing import Optional
-from database import  db,enrollments_collection,trainer_collection
+from xml.dom.minidom import Document
+from database import  db,enrollments_collection,trainer_collection,student_collection,courses_collection
 
 
 
